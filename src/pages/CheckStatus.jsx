@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { appointmentsAPI } from '../lib/api'
+import { supabase } from '../lib/supabase'
 
 export default function CheckStatus() {
   const [reference, setReference] = useState('')
-  const [appointment, setAppointment] = useState(null)
+  const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [searched, setSearched] = useState(false)
@@ -15,11 +15,20 @@ export default function CheckStatus() {
     setSearched(true)
 
     try {
-      const { appointment: data } = await appointmentsAPI.getStatus(reference)
-      setAppointment(data)
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          *,
+          patients (full_name, phone)
+        `)
+        .eq('reference_number', reference.toUpperCase())
+        .single()
+
+      if (error) throw error
+      setBooking(data)
     } catch (err) {
-      setError(err.message || 'Booking not found. Check your reference number.')
-      setAppointment(null)
+      setError('Booking not found. Check your reference number.')
+      setBooking(null)
     } finally {
       setLoading(false)
     }
@@ -32,6 +41,15 @@ export default function CheckStatus() {
       case 'rejected': return 'bg-red-100 text-red-700'
       default: return 'bg-gray-100 text-gray-700'
     }
+  }
+
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    })
   }
 
   return (
@@ -63,36 +81,36 @@ export default function CheckStatus() {
         </div>
       )}
 
-      {appointment && (
+      {booking && (
         <div className="bg-white shadow-lg rounded-xl p-6">
           <div className="flex items-center justify-between mb-6">
-            <span className="text-2xl font-mono font-bold text-green-600">{appointment.reference_number}</span>
-            <span className={`px-4 py-2 rounded-full text-sm font-semibold capitalize ${getStatusColor(appointment.status)}`}>
-              {appointment.status}
+            <span className="text-2xl font-mono font-bold text-green-600">{booking.reference_number}</span>
+            <span className={`px-4 py-2 rounded-full text-sm font-semibold capitalize ${getStatusColor(booking.status)}`}>
+              {booking.status}
             </span>
           </div>
 
           <div className="space-y-4">
             <div className="flex justify-between py-3 border-b">
               <span className="text-gray-600">Patient Name</span>
-              <span className="font-semibold">{appointment.patient_name}</span>
+              <span className="font-semibold">{booking.patients?.full_name}</span>
             </div>
             <div className="flex justify-between py-3 border-b">
               <span className="text-gray-600">Phone</span>
-              <span className="font-semibold">{appointment.phone}</span>
+              <span className="font-semibold">{booking.patients?.phone}</span>
             </div>
             <div className="flex justify-between py-3 border-b">
               <span className="text-gray-600">Appointment Date</span>
-              <span className="font-semibold">{appointment.date}</span>
+              <span className="font-semibold">{formatDate(booking.appointment_date)}</span>
             </div>
             <div className="flex justify-between py-3 border-b">
               <span className="text-gray-600">Appointment Time</span>
-              <span className="font-semibold">{appointment.time}</span>
+              <span className="font-semibold">{booking.appointment_time}</span>
             </div>
-            {appointment.reason && (
+            {booking.notes && (
               <div className="py-3">
-                <span className="text-gray-600 block mb-2">Reason</span>
-                <p className="bg-gray-50 p-3 rounded-lg">{appointment.reason}</p>
+                <span className="text-gray-600 block mb-2">Notes</span>
+                <p className="bg-gray-50 p-3 rounded-lg">{booking.notes}</p>
               </div>
             )}
           </div>

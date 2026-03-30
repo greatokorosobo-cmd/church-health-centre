@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { patientsAPI } from '../lib/api'
+import { supabase } from '../lib/supabase'
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -25,8 +25,15 @@ export default function Register() {
     setMessage(null)
 
     try {
-      const result = await patientsAPI.register(formData)
-      setMessage(`Registration successful! Your Patient ID: ${result.patient_id}`)
+      const { data, error } = await supabase
+        .from('patients')
+        .insert([formData])
+        .select()
+        .single()
+
+      if (error) throw error
+
+      setMessage(`Registration successful! Your Patient ID: ${data.id}`)
       setFormData({
         full_name: '',
         phone: '',
