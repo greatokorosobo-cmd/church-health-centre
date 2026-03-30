@@ -9,7 +9,6 @@ export default function StaffDashboard() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Check if logged in
     const session = localStorage.getItem('staff_session')
     if (!session) {
       navigate('/staff')
@@ -22,12 +21,8 @@ export default function StaffDashboard() {
     try {
       let query = supabase
         .from('appointments')
-        .select(`
-          *,
-          patients (full_name, phone, email)
-        `)
-        .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true })
+        .select('*')
+        .order('created_at', { ascending: false })
 
       if (filter !== 'all') {
         query = query.eq('status', filter)
@@ -48,12 +43,11 @@ export default function StaffDashboard() {
     try {
       const { error } = await supabase
         .from('appointments')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .update({ status: newStatus })
         .eq('id', id)
 
       if (error) throw error
 
-      // Update local state
       setAppointments(appointments.map(apt =>
         apt.id === id ? { ...apt, status: newStatus } : apt
       ))
@@ -100,7 +94,6 @@ export default function StaffDashboard() {
         </button>
       </div>
 
-      {/* Filter Tabs */}
       <div className="flex gap-2 mb-6">
         {['all', 'pending', 'approved', 'rejected'].map((f) => (
           <button
@@ -117,7 +110,6 @@ export default function StaffDashboard() {
         ))}
       </div>
 
-      {/* Appointments Table */}
       <div className="bg-white shadow-lg rounded-xl overflow-hidden">
         {loading ? (
           <div className="p-8 text-center text-gray-500">Loading...</div>
@@ -132,7 +124,6 @@ export default function StaffDashboard() {
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Contact</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Date & Time</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Status</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Reference</th>
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">Actions</th>
                 </tr>
               </thead>
@@ -140,19 +131,17 @@ export default function StaffDashboard() {
                 {appointments.map((apt) => (
                   <tr key={apt.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-800">{apt.patients?.full_name}</div>
-                      <div className="text-sm text-gray-500">ID: {apt.patients?.id?.slice(0, 8)}</div>
+                      <div className="font-medium text-gray-800">{apt.patient_name}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm">{apt.patients?.phone}</div>
-                      <div className="text-sm text-gray-500">{apt.patients?.email}</div>
+                      <div className="text-sm">{apt.phone}</div>
+                      <div className="text-sm text-gray-500">{apt.email}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium">{formatDate(apt.appointment_date)}</div>
-                      <div className="text-sm text-gray-500">{apt.appointment_time}</div>
+                      <div className="font-medium">{formatDate(apt.date)}</div>
+                      <div className="text-sm text-gray-500">{apt.time_slot}</div>
                     </td>
                     <td className="px-4 py-3">{getStatusBadge(apt.status)}</td>
-                    <td className="px-4 py-3 font-mono text-sm">{apt.reference_number}</td>
                     <td className="px-4 py-3">
                       {apt.status === 'pending' && (
                         <div className="flex gap-2">

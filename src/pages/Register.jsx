@@ -33,7 +33,7 @@ export default function Register() {
 
       if (error) throw error
 
-      setMessage(`Registration successful! Your Patient ID: ${data.id}`)
+      setMessage(`Registration successful! Your Phone: ${data.phone}`)
       setFormData({
         full_name: '',
         phone: '',

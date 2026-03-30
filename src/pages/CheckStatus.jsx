@@ -2,14 +2,14 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 export default function CheckStatus() {
-  const [reference, setReference] = useState('')
-  const [booking, setBooking] = useState(null)
+  const [phone, setPhone] = useState('')
+  const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [searched, setSearched] = useState(false)
 
-  const searchBooking = async () => {
-    if (!reference) return
+  const searchBookings = async () => {
+    if (!phone) return
     setLoading(true)
     setError(null)
     setSearched(true)
@@ -17,18 +17,15 @@ export default function CheckStatus() {
     try {
       const { data, error } = await supabase
         .from('appointments')
-        .select(`
-          *,
-          patients (full_name, phone)
-        `)
-        .eq('reference_number', reference.toUpperCase())
-        .single()
+        .select('*')
+        .eq('phone', phone)
+        .order('created_at', { ascending: false })
 
       if (error) throw error
-      setBooking(data)
+      setBookings(data || [])
     } catch (err) {
-      setError('Booking not found. Check your reference number.')
-      setBooking(null)
+      setError('Error fetching bookings.')
+      setBookings([])
     } finally {
       setLoading(false)
     }
@@ -59,15 +56,15 @@ export default function CheckStatus() {
       <div className="bg-white shadow-lg rounded-xl p-6 mb-8">
         <div className="flex gap-3">
           <input
-            type="text"
-            value={reference}
-            onChange={(e) => setReference(e.target.value.toUpperCase())}
-            placeholder="Enter your reference number (e.g., CHC-XXXXXX)"
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 font-mono"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Enter your phone number"
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
           />
           <button
-            onClick={searchBooking}
-            disabled={loading || !reference}
+            onClick={searchBookings}
+            disabled={loading || !phone}
             className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
           >
             {loading ? 'Searching...' : 'Search'}
@@ -81,46 +78,39 @@ export default function CheckStatus() {
         </div>
       )}
 
-      {booking && (
-        <div className="bg-white shadow-lg rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <span className="text-2xl font-mono font-bold text-green-600">{booking.reference_number}</span>
-            <span className={`px-4 py-2 rounded-full text-sm font-semibold capitalize ${getStatusColor(booking.status)}`}>
-              {booking.status}
-            </span>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex justify-between py-3 border-b">
-              <span className="text-gray-600">Patient Name</span>
-              <span className="font-semibold">{booking.patients?.full_name}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b">
-              <span className="text-gray-600">Phone</span>
-              <span className="font-semibold">{booking.patients?.phone}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b">
-              <span className="text-gray-600">Appointment Date</span>
-              <span className="font-semibold">{formatDate(booking.appointment_date)}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b">
-              <span className="text-gray-600">Appointment Time</span>
-              <span className="font-semibold">{booking.appointment_time}</span>
-            </div>
-            {booking.notes && (
-              <div className="py-3">
-                <span className="text-gray-600 block mb-2">Notes</span>
-                <p className="bg-gray-50 p-3 rounded-lg">{booking.notes}</p>
+      {bookings.length > 0 && (
+        <div className="space-y-4">
+          {bookings.map((booking) => (
+            <div key={booking.id} className="bg-white shadow-lg rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-lg font-semibold">{booking.patient_name}</span>
+                <span className={`px-4 py-2 rounded-full text-sm font-semibold capitalize ${getStatusColor(booking.status)}`}>
+                  {booking.status}
+                </span>
               </div>
-            )}
-          </div>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Date:</span>
+                  <span className="font-medium">{formatDate(booking.date)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Time:</span>
+                  <span className="font-medium">{booking.time_slot}</span>
+                </div>
+                {booking.reason && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Reason:</span>
+                    <span className="font-medium">{booking.reason}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
-      {!searched && (
-        <p className="text-center text-gray-500">
-          Enter your reference number to check your booking status
-        </p>
+      {searched && bookings.length === 0 && !loading && (
+        <p className="text-center text-gray-500">No bookings found for this phone number</p>
       )}
     </div>
   )

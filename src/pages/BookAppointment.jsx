@@ -12,32 +12,30 @@ export default function BookAppointment() {
   const [error, setError] = useState(null)
 
   const [bookingData, setBookingData] = useState({
-    appointment_date: '',
-    appointment_time: '',
-    notes: ''
+    date: '',
+    time_slot: '',
+    reason: ''
   })
   const [bookedSlots, setBookedSlots] = useState([])
 
-  // Get minimum date (today)
   const minDate = new Date().toISOString().split('T')[0]
 
-  // Fetch booked slots when date changes
   useEffect(() => {
-    if (bookingData.appointment_date) {
+    if (bookingData.date) {
       fetchBookedSlots()
     }
-  }, [bookingData.appointment_date])
+  }, [bookingData.date])
 
   const fetchBookedSlots = async () => {
     try {
       const { data, error } = await supabase
         .from('appointments')
-        .select('appointment_time')
-        .eq('appointment_date', bookingData.appointment_date)
+        .select('time_slot')
+        .eq('date', bookingData.date)
         .neq('status', 'rejected')
 
       if (error) throw error
-      setBookedSlots(data.map(a => a.appointment_time))
+      setBookedSlots(data.map(a => a.time_slot))
     } catch (err) {
       console.error('Error fetching slots:', err)
     }
@@ -73,28 +71,23 @@ export default function BookAppointment() {
     setError(null)
 
     try {
-      // Generate reference number
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-      let ref = 'CHC-'
-      for (let i = 0; i < 6; i++) {
-        ref += chars.charAt(Math.floor(Math.random() * chars.length))
-      }
-
       const { error } = await supabase
         .from('appointments')
         .insert([{
-          patient_id: selectedPatient,
-          appointment_date: bookingData.appointment_date,
-          appointment_time: bookingData.appointment_time,
-          notes: bookingData.notes,
-          reference_number: ref
+          patient_name: patientFound.full_name,
+          phone: patientFound.phone,
+          email: patientFound.email,
+          date: bookingData.date,
+          time_slot: bookingData.time_slot,
+          reason: bookingData.reason,
+          status: 'pending'
         }])
 
       if (error) throw error
 
-      setMessage(`Booking submitted! Your reference: ${ref}. Wait for confirmation.`)
+      setMessage(`Booking submitted! Wait for confirmation.`)
       setStep(3)
-      setBookingData({ appointment_date: '', appointment_time: '', notes: '' })
+      setBookingData({ date: '', time_slot: '', reason: '' })
     } catch (err) {
       setError(err.message || 'Booking failed. This slot may already be taken.')
     } finally {
@@ -154,25 +147,25 @@ export default function BookAppointment() {
               <input
                 type="date"
                 min={minDate}
-                value={bookingData.appointment_date}
-                onChange={(e) => setBookingData({ ...bookingData, appointment_date: e.target.value })}
+                value={bookingData.date}
+                onChange={(e) => setBookingData({ ...bookingData, date: e.target.value })}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
               />
             </div>
 
-            {bookingData.appointment_date && (
+            {bookingData.date && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Time *</label>
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                   {TIME_SLOTS.map((slot) => {
                     const isBooked = bookedSlots.includes(slot)
-                    const isSelected = bookingData.appointment_time === slot
+                    const isSelected = bookingData.time_slot === slot
                     return (
                       <button
                         key={slot}
                         type="button"
-                        onClick={() => setBookingData({ ...bookingData, appointment_time: slot })}
+                        onClick={() => setBookingData({ ...bookingData, time_slot: slot })}
                         disabled={isBooked}
                         className={`px-3 py-2 rounded-lg text-sm font-medium transition ${
                           isBooked
@@ -192,10 +185,10 @@ export default function BookAppointment() {
             )}
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Reason for visit (optional)</label>
               <textarea
-                value={bookingData.notes}
-                onChange={(e) => setBookingData({ ...bookingData, notes: e.target.value })}
+                value={bookingData.reason}
+                onChange={(e) => setBookingData({ ...bookingData, reason: e.target.value })}
                 rows="3"
                 placeholder="Any symptoms or concerns..."
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
@@ -204,7 +197,7 @@ export default function BookAppointment() {
 
             <button
               type="submit"
-              disabled={loading || !bookingData.appointment_date || !bookingData.appointment_time}
+              disabled={loading || !bookingData.date || !bookingData.time_slot}
               className="w-full py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:opacity-50"
             >
               {loading ? 'Booking...' : 'Confirm Booking'}
