@@ -3,13 +3,6 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// Time slots from 9 AM to 5 PM
-const TIME_SLOTS = [
-  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
-  '15:00', '15:30', '16:00', '16:30'
-]
-
 function generateReference() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
   let ref = 'CHC-'
@@ -19,58 +12,25 @@ function generateReference() {
   return ref
 }
 
-function formatTime(time) {
-  const [hours, minutes] = time.split(':')
-  const hour = parseInt(hours)
-  const ampm = hour >= 12 ? 'PM' : 'AM'
-  const hour12 = hour % 12 || 12
-  return `${hour12}:${minutes} ${ampm}`
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { patient_id, appointment_date, appointment_time, notes } = req.body
+  const { patient_name, phone, email, date, time_slot, reason } = req.body
 
-  // Validate required fields
-  if (!patient_id || !appointment_date || !appointment_time) {
-    return res.status(400).json({ error: 'Patient ID, date, and time are required' })
-  }
-
-  // Validate time slot
-  if (!TIME_SLOTS.includes(appointment_time)) {
-    return res.status(400).json({ error: 'Invalid time slot' })
-  }
-
-  // Validate date is not in the past
-  const selectedDate = new Date(appointment_date)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  if (selectedDate < today) {
-    return res.status(400).json({ error: 'Cannot book appointments in the past' })
+  if (!patient_name || !phone || !date || !time_slot) {
+    return res.status(400).json({ error: 'Name, phone, date, and time are required' })
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Check if patient exists
-  const { data: patient } = await supabase
-    .from('patients')
-    .select('id')
-    .eq('id', patient_id)
-    .single()
-
-  if (!patient) {
-    return res.status(404).json({ error: 'Patient not found' })
-  }
-
-  // Check if slot is already taken
+  // Check for existing appointments at same date/time
   const { data: existing } = await supabase
     .from('appointments')
     .select('id')
-    .eq('appointment_date', appointment_date)
-    .eq('appointment_time', appointment_time)
+    .eq('date', date)
+    .eq('time_slot', time_slot)
     .neq('status', 'rejected')
     .single()
 
@@ -81,15 +41,16 @@ export default async function handler(req, res) {
     })
   }
 
-  // Create appointment
   const reference_number = generateReference()
   const { data, error } = await supabase
     .from('appointments')
     .insert([{
-      patient_id,
-      appointment_date,
-      appointment_time,
-      notes: notes || null,
+      patient_name,
+      phone,
+      email: email || null,
+      date,
+      time_slot,
+      reason: reason || null,
       reference_number,
       status: 'pending'
     }])
@@ -106,8 +67,8 @@ export default async function handler(req, res) {
     reference_number,
     appointment: {
       id: data.id,
-      date: appointment_date,
-      time: formatTime(appointment_time),
+      date: data.date,
+      time: data.time_slot,
       status: 'pending'
     },
     message: `Booking submitted! Your reference: ${reference_number}. Wait for confirmation.`

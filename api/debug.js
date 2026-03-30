@@ -7,26 +7,37 @@ export default async function handler(req, res) {
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
     
-    const { data, error } = await supabase
-      .from('appointments')
-      .select('appointment_time')
-      .eq('appointment_date', '2026-04-02')
-      .neq('status', 'rejected')
+    // Check what tables exist
+    const { data: tables, error: tablesError } = await supabase
+      .from('information_schema.tables')
+      .select('table_name')
+      .eq('table_schema', 'public')
+      .not('table_name', 'like', '%_batch_%')
     
-    if (error) {
-      return res.status(200).json({ 
-        error: error.message,
-        details: error.details,
-        hint: error.hint
-      })
+    if (tablesError) {
+      return res.status(200).json({ tablesError: tablesError.message })
     }
     
-    return res.status(200).json({ slots: data })
-  } catch (e) {
+    // Check columns of appointments if it exists
+    let appointmentsColumns = null
+    const aptTable = tables?.find(t => t.table_name === 'appointments')
+    if (aptTable) {
+      const { data: cols, error: colsError } = await supabase
+        .from('information_schema.columns')
+        .select('column_name')
+        .eq('table_name', 'appointments')
+        .eq('table_schema', 'public')
+      
+      if (!colsError) {
+        appointmentsColumns = cols
+      }
+    }
+    
     return res.status(200).json({ 
-      catch_error: e.message,
-      supabaseUrl: supabaseUrl ? 'present' : 'missing',
-      supabaseServiceKey: supabaseServiceKey ? 'present' : 'missing'
+      tables: tables?.map(t => t.table_name),
+      appointmentsColumns
     })
+  } catch (e) {
+    return res.status(200).json({ catch_error: e.message })
   }
 }

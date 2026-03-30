@@ -3,12 +3,20 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
-// Time slots from 9 AM to 5 PM
 const TIME_SLOTS = [
   '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
   '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
   '15:00', '15:30', '16:00', '16:30'
 ]
+
+function generateReference() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let ref = 'CHC-'
+  for (let i = 0; i < 6; i++) {
+    ref += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return ref
+}
 
 function formatTime(time) {
   const [hours, minutes] = time.split(':')
@@ -29,20 +37,12 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Date is required' })
   }
 
-  // Validate date is not in the past
-  const selectedDate = new Date(date)
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  if (selectedDate < today) {
-    return res.status(400).json({ error: 'Cannot check slots for past dates' })
-  }
-
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   const { data, error } = await supabase
     .from('appointments')
-    .select('appointment_time')
-    .eq('appointment_date', date)
+    .select('time_slot')
+    .eq('date', date)
     .neq('status', 'rejected')
 
   if (error) {
@@ -50,9 +50,8 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to fetch available slots' })
   }
 
-  const bookedSlots = (data || []).map(a => a.appointment_time)
+  const bookedSlots = (data || []).map(a => a.time_slot)
   
-  // Return all slots with availability
   const slots = TIME_SLOTS.map(time => ({
     time,
     display: formatTime(time),
