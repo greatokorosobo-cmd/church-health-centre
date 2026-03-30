@@ -8,34 +8,15 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const { full_name, phone, email, date_of_birth, gender, address } = req.body
+  const { full_name, phone, email, date_of_birth, gender, blood_group, genotype, allergies } = req.body
 
-  // Validate required fields
-  if (!full_name || !phone || !email || !date_of_birth || !gender || !address) {
-    return res.status(400).json({ error: 'All fields are required' })
-  }
-
-  // Validate phone format (Nigerian)
-  const phoneRegex = /^[\d\s\+\-\(\)]{10,15}$/
-  if (!phoneRegex.test(phone)) {
-    return res.status(400).json({ error: 'Invalid phone number format' })
-  }
-
-  // Validate email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: 'Invalid email format' })
-  }
-
-  // Validate date of birth (must be in the past)
-  const dob = new Date(date_of_birth)
-  if (dob >= new Date()) {
-    return res.status(400).json({ error: 'Date of birth must be in the past' })
+  if (!full_name || !phone) {
+    return res.status(400).json({ error: 'Full name and phone are required' })
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // Check if patient already exists by phone
+  // Check if patient exists by phone
   const { data: existing } = await supabase
     .from('patients')
     .select('id, phone')
@@ -46,10 +27,18 @@ export default async function handler(req, res) {
     return res.status(409).json({ error: 'Patient with this phone number already exists', patient_id: existing.id })
   }
 
-  // Insert new patient
   const { data, error } = await supabase
     .from('patients')
-    .insert([{ full_name, phone, email, date_of_birth, gender, address }])
+    .insert([{ 
+      full_name, 
+      phone, 
+      email: email || null, 
+      date_of_birth: date_of_birth || null,
+      gender: gender || null,
+      blood_group: blood_group || null,
+      genotype: genotype || null,
+      allergies: allergies || null
+    }])
     .select()
     .single()
 
