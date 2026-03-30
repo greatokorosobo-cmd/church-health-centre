@@ -8,20 +8,9 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Verify staff authentication
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' })
-  }
-
-  const token = authHeader.slice(7)
-  
-  // Verify the token with Supabase Auth
-  const supabaseAuth = createClient(supabaseUrl, process.env.SUPABASE_ANON_KEY)
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Invalid or expired token' })
   }
 
   const { appointment_id, status } = req.body
@@ -30,19 +19,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Appointment ID and status are required' })
   }
 
-  // Validate status
   if (!['pending', 'approved', 'rejected'].includes(status)) {
-    return res.status(400).json({ error: 'Invalid status. Must be pending, approved, or rejected.' })
+    return res.status(400).json({ error: 'Invalid status' })
   }
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   const { data, error } = await supabase
     .from('appointments')
-    .update({ 
-      status, 
-      updated_at: new Date().toISOString() 
-    })
+    .update({ status })
     .eq('id', appointment_id)
     .select()
     .single()

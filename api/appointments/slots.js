@@ -9,15 +9,6 @@ const TIME_SLOTS = [
   '15:00', '15:30', '16:00', '16:30'
 ]
 
-function generateReference() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-  let ref = 'CHC-'
-  for (let i = 0; i < 6; i++) {
-    ref += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return ref
-}
-
 function formatTime(time) {
   const [hours, minutes] = time.split(':')
   const hour = parseInt(hours)
@@ -41,16 +32,15 @@ export default async function handler(req, res) {
 
   const { data, error } = await supabase
     .from('appointments')
-    .select('time_slot')
-    .eq('date', date)
+    .select('appointment_time')
+    .eq('appointment_date', date)
     .neq('status', 'rejected')
 
   if (error) {
-    console.error('Supabase error:', error)
-    return res.status(500).json({ error: 'Failed to fetch available slots' })
+    return res.status(500).json({ error: error.message })
   }
 
-  const bookedSlots = (data || []).map(a => a.time_slot)
+  const bookedSlots = (data || []).map(a => a.appointment_time)
   
   const slots = TIME_SLOTS.map(time => ({
     time,
@@ -58,8 +48,5 @@ export default async function handler(req, res) {
     available: !bookedSlots.includes(time)
   }))
 
-  return res.status(200).json({ 
-    date,
-    slots
-  })
+  return res.status(200).json({ date, slots, booked: bookedSlots })
 }

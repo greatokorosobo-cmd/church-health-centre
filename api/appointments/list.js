@@ -8,57 +8,27 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Verify staff authentication
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  const token = authHeader.slice(7)
-  
-  // Verify the token with Supabase Auth
-  const supabaseAuth = createClient(supabaseUrl, process.env.SUPABASE_ANON_KEY)
-  const { data: { user }, error: authError } = await supabaseAuth.auth.getUser(token)
-  
-  if (authError || !user) {
-    return res.status(401).json({ error: 'Invalid or expired token' })
-  }
-
-  // Get filter from query params
   const { status = 'all', date = null } = req.query
 
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   let query = supabase
     .from('appointments')
-    .select(`
-      id,
-      appointment_date,
-      appointment_time,
-      status,
-      notes,
-      reference_number,
-      created_at,
-      updated_at,
-      patients (
-        id,
-        full_name,
-        phone,
-        email,
-        date_of_birth,
-        gender,
-        address
-      )
-    `)
-    .order('appointment_date', { ascending: true })
-    .order('appointment_time', { ascending: true })
+    .select('id, patient_name, phone, email, date, time_slot, reason, status, reference_number, created_at, updated_at')
+    .order('date', { ascending: true })
+    .order('time_slot', { ascending: true })
 
   if (status && status !== 'all') {
     query = query.eq('status', status)
   }
 
   if (date) {
-    query = query.eq('appointment_date', date)
+    query = query.eq('date', date)
   }
 
   const { data, error } = await query
@@ -68,25 +38,18 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Failed to fetch appointments' })
   }
 
-  // Format the response
   const appointments = (data || []).map(apt => ({
     id: apt.id,
-    appointment_date: apt.appointment_date,
-    appointment_time: apt.appointment_time,
+    patient_name: apt.patient_name,
+    phone: apt.phone,
+    email: apt.email,
+    appointment_date: apt.date,
+    appointment_time: apt.time_slot,
+    reason: apt.reason,
     status: apt.status,
-    notes: apt.notes,
     reference_number: apt.reference_number,
     created_at: apt.created_at,
-    updated_at: apt.updated_at,
-    patient: apt.patients ? {
-      id: apt.patients.id,
-      full_name: apt.patients.full_name,
-      phone: apt.patients.phone,
-      email: apt.patients.email,
-      date_of_birth: apt.patients.date_of_birth,
-      gender: apt.patients.gender,
-      address: apt.patients.address
-    } : null
+    updated_at: apt.updated_at
   }))
 
   return res.status(200).json({ appointments })
