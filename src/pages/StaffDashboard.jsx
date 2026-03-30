@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { appointmentsAPI, authAPI } from '../lib/api'
 
 export default function StaffDashboard() {
   const [appointments, setAppointments] = useState([])
@@ -9,33 +9,31 @@ export default function StaffDashboard() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Check if logged in
-    const session = localStorage.getItem('staff_session')
-    if (!session) {
+    checkAuth()
+  }, [])
+
+  const checkAuth = async () => {
+    const token = localStorage.getItem('staff_token')
+    if (!token) {
       navigate('/staff')
       return
     }
-    fetchAppointments()
-  }, [])
 
-  const fetchAppointments = async () => {
     try {
-      let query = supabase
-        .from('appointments')
-        .select(`
-          *,
-          patients (full_name, phone, email)
-        `)
-        .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true })
+      await authAPI.getSession(token)
+      fetchAppointments(token)
+    } catch (err) {
+      localStorage.removeItem('staff_token')
+      localStorage.removeItem('staff_user')
+      navigate('/staff')
+    }
+  }
 
-      if (filter !== 'all') {
-        query = query.eq('status', filter)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
+  const fetchAppointments = async (token) => {
+    try {
+      const { appointments: data } = await appointmentsAPI.list(token, 
+        filter !== 'all' ? { status: filter } : {}
+      )
       setAppointments(data || [])
     } catch (err) {
       console.error('Error fetching appointments:', err)
@@ -45,15 +43,9 @@ export default function StaffDashboard() {
   }
 
   const updateStatus = async (id, newStatus) => {
+    const token = localStorage.getItem('staff_token')
     try {
-      const { error } = await supabase
-        .from('appointments')
-        .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', id)
-
-      if (error) throw error
-
-      // Update local state
+      await appointmentsAPI.update(id, newStatus, token)
       setAppointments(appointments.map(apt =>
         apt.id === id ? { ...apt, status: newStatus } : apt
       ))
@@ -62,8 +54,15 @@ export default function StaffDashboard() {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('staff_session')
+  const handleLogout = async () => {
+    const token = localStorage.getItem('staff_token')
+    try {
+      await authAPI.logout(token)
+    } catch (err) {
+      // Ignore logout errors
+    }
+    localStorage.removeItem('staff_token')
+    localStorage.removeItem('staff_user')
     navigate('/staff')
   }
 
@@ -88,6 +87,12 @@ export default function StaffDashboard() {
     }
   }
 
+  const handleFilterChange = (newFilter) => {
+    setFilter(newFilter)
+    const token = localStorage.getItem('staff_token')
+    fetchAppointments(token)
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-8">
@@ -105,7 +110,7 @@ export default function StaffDashboard() {
         {['all', 'pending', 'approved', 'rejected'].map((f) => (
           <button
             key={f}
-            onClick={() => { setFilter(f); fetchAppointments(); }}
+            onClick={() => handleFilterChange(f)}
             className={`px-4 py-2 rounded-lg font-medium capitalize ${
               filter === f
                 ? 'bg-green-600 text-white'
@@ -140,12 +145,12 @@ export default function StaffDashboard() {
                 {appointments.map((apt) => (
                   <tr key={apt.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3">
-                      <div className="font-medium text-gray-800">{apt.patients?.full_name}</div>
-                      <div className="text-sm text-gray-500">ID: {apt.patients?.id?.slice(0, 8)}</div>
+                      <div className="font-medium text-gray-800">{apt.patient?.full_name}</div>
+                      <div className="text-sm text-gray-500">ID: {apt.patient?.id?.slice(0, 8)}</div>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="text-sm">{apt.patients?.phone}</div>
-                      <div className="text-sm text-gray-500">{apt.patients?.email}</div>
+                      <div className="text-sm">{apt.patient?.phone}</div>
+                      <div className="text-sm text-gray-500">{apt.patient?.email}</div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{formatDate(apt.appointment_date)}</div>

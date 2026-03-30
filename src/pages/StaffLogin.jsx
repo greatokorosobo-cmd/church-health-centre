@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { authAPI } from '../lib/api'
 
 export default function StaffLogin() {
   const [email, setEmail] = useState('')
@@ -13,16 +14,19 @@ export default function StaffLogin() {
     setLoading(true)
     setError(null)
 
-    // For demo purposes - in production, integrate with Supabase Auth
-    // This is a simplified check
-    if (email && password) {
-      // Store session in localStorage for demo
-      localStorage.setItem('staff_session', JSON.stringify({ email, logged_in: true }))
+    try {
+      const result = await authAPI.login(email, password)
+      
+      // Store session in localStorage (access token only - refresh handled server-side)
+      localStorage.setItem('staff_token', result.session.access_token)
+      localStorage.setItem('staff_user', JSON.stringify(result.user))
+      
       navigate('/staff/dashboard')
-    } else {
-      setError('Invalid credentials')
+    } catch (err) {
+      setError(err.message || 'Invalid credentials')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   return (

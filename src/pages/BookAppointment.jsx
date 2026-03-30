@@ -1,10 +1,22 @@
-import { useState, useEffect } from 'react'
-import { supabase, TIME_SLOTS, formatTime } from '../lib/supabase'
+import { useState } from 'react'
+import { patientsAPI, appointmentsAPI } from '../lib/api'
+
+const TIME_SLOTS = [
+  '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+  '12:00', '12:30', '13:00', '13:30', '14:00', '14:30',
+  '15:00', '15:30', '16:00', '16:30'
+]
+
+const formatTime = (time) => {
+  const [hours, minutes] = time.split(':')
+  const hour = parseInt(hours)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${minutes} ${ampm}`
+}
 
 export default function BookAppointment() {
   const [step, setStep] = useState(1)
-  const [patients, setPatients] = useState([])
-  const [selectedPatient, setSelectedPatient] = useState('')
   const [phone, setPhone] = useState('')
   const [patientFound, setPatientFound] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -18,26 +30,12 @@ export default function BookAppointment() {
   })
   const [bookedSlots, setBookedSlots] = useState([])
 
-  // Get minimum date (today)
   const minDate = new Date().toISOString().split('T')[0]
 
-  // Fetch booked slots when date changes
-  useEffect(() => {
-    if (bookingData.appointment_date) {
-      fetchBookedSlots()
-    }
-  }, [bookingData.appointment_date])
-
-  const fetchBookedSlots = async () => {
+  const fetchBookedSlots = async (date) => {
     try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select('appointment_time')
-        .eq('appointment_date', bookingData.appointment_date)
-        .neq('status', 'rejected')
-
-      if (error) throw error
-      setBookedSlots(data.map(a => a.appointment_time))
+      const { slots } = await appointmentsAPI.getSlots(date)
+      setBookedSlots(slots.filter(s => !s.available).map(s => s.time))
     } catch (err) {
       console.error('Error fetching slots:', err)
     }
@@ -50,20 +48,20 @@ export default function BookAppointment() {
     setPatientFound(null)
 
     try {
-      const { data, error } = await supabase
-        .from('patients')
-        .select('*')
-        .eq('phone', phone)
-        .single()
-
-      if (error) throw error
-      setPatientFound(data)
-      setSelectedPatient(data.id)
+      const { patient } = await patientsAPI.search(phone)
+      setPatientFound(patient)
       setStep(2)
     } catch (err) {
-      setError('Patient not found. Please register first.')
+      setError(err.message || 'Patient not found. Please register first.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDateChange = (date) => {
+    setBookingData({ ...bookingData, appointment_date: date, appointment_time: '' })
+    if (date) {
+      fetchBookedSlots(date)
     }
   }
 
@@ -73,26 +71,13 @@ export default function BookAppointment() {
     setError(null)
 
     try {
-      // Generate reference number
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
-      let ref = 'CHC-'
-      for (let i = 0; i < 6; i++) {
-        ref += chars.charAt(Math.floor(Math.random() * chars.length))
-      }
-
-      const { error } = await supabase
-        .from('appointments')
-        .insert([{
-          patient_id: selectedPatient,
-          appointment_date: bookingData.appointment_date,
-          appointment_time: bookingData.appointment_time,
-          notes: bookingData.notes,
-          reference_number: ref
-        }])
-
-      if (error) throw error
-
-      setMessage(`Booking submitted! Your reference: ${ref}. Wait for confirmation.`)
+      const result = await appointmentsAPI.book({
+        patient_id: patientFound.id,
+        appointment_date: bookingData.appointment_date,
+        appointment_time: bookingData.appointment_time,
+        notes: bookingData.notes
+      })
+      setMessage(result.message || `Booking submitted! Your reference: ${result.reference_number}. Wait for confirmation.`)
       setStep(3)
       setBookingData({ appointment_date: '', appointment_time: '', notes: '' })
     } catch (err) {
@@ -155,7 +140,7 @@ export default function BookAppointment() {
                 type="date"
                 min={minDate}
                 value={bookingData.appointment_date}
-                onChange={(e) => setBookingData({ ...bookingData, appointment_date: e.target.value })}
+                onChange={(e) => handleDateChange(e.target.value)}
                 required
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500"
               />

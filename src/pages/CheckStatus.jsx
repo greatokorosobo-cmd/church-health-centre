@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { appointmentsAPI } from '../lib/api'
 
 export default function CheckStatus() {
   const [reference, setReference] = useState('')
@@ -15,19 +15,10 @@ export default function CheckStatus() {
     setSearched(true)
 
     try {
-      const { data, error } = await supabase
-        .from('appointments')
-        .select(`
-          *,
-          patients (full_name, phone)
-        `)
-        .eq('reference_number', reference.toUpperCase())
-        .single()
-
-      if (error) throw error
-      setBooking(data)
+      const { appointment } = await appointmentsAPI.getStatus(reference.toUpperCase())
+      setBooking(appointment)
     } catch (err) {
-      setError('Booking not found. Check your reference number.')
+      setError(err.message || 'Booking not found. Check your reference number.')
       setBooking(null)
     } finally {
       setLoading(false)
@@ -41,15 +32,6 @@ export default function CheckStatus() {
       case 'rejected': return 'bg-red-100 text-red-700'
       default: return 'bg-gray-100 text-gray-700'
     }
-  }
-
-  const formatDate = (dateStr) => {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    })
   }
 
   return (
@@ -93,19 +75,15 @@ export default function CheckStatus() {
           <div className="space-y-4">
             <div className="flex justify-between py-3 border-b">
               <span className="text-gray-600">Patient Name</span>
-              <span className="font-semibold">{booking.patients?.full_name}</span>
-            </div>
-            <div className="flex justify-between py-3 border-b">
-              <span className="text-gray-600">Phone</span>
-              <span className="font-semibold">{booking.patients?.phone}</span>
+              <span className="font-semibold">{booking.patient_name}</span>
             </div>
             <div className="flex justify-between py-3 border-b">
               <span className="text-gray-600">Appointment Date</span>
-              <span className="font-semibold">{formatDate(booking.appointment_date)}</span>
+              <span className="font-semibold">{booking.date}</span>
             </div>
             <div className="flex justify-between py-3 border-b">
               <span className="text-gray-600">Appointment Time</span>
-              <span className="font-semibold">{booking.appointment_time}</span>
+              <span className="font-semibold">{booking.time}</span>
             </div>
             {booking.notes && (
               <div className="py-3">
